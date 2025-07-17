@@ -3,3 +3,4 @@ pandas
 psycopg2-binary
 matplotlib
 seaborn
+streamlit_authenticator==0.2.2 # Pin to a stable version
