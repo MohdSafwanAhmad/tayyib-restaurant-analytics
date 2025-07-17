@@ -405,9 +405,9 @@ st.markdown("""
 names = ["Baan Lao", "Crusty's NDG", "Mama Khan"]
 usernames = ["Baan Lao", "Crusty's NDG", "Mama Khan"]
 hashed_passwords = [
-    st_auth.Hasher(['passwordA1']).generate()[0],
-    st_auth.Hasher(['passwordB2']).generate()[0],
-    st_auth.Hasher(['passwordC3']).generate()[0]
+    st_auth.Hasher(['baan_lao']).generate()[0],
+    st_auth.Hasher(['crustys_ndg']).generate()[0],
+    st_auth.Hasher(['mama_khan']).generate()[0]
 ]
 
 credentials = {
