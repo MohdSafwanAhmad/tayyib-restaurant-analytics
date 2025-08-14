@@ -6,6 +6,7 @@ import streamlit_authenticator as st_auth
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import psycopg2
 
 # --- Config ---
 PLOTS_DIR = 'public/images/analytics_plots'
@@ -18,11 +19,11 @@ ACCENT_COLOR = '#45B7D1' # Light blue
 GRAY_COLOR = '#6c757d' # Muted gray
 
 # Database connection details (fetched from environment variables)
-PG_HOST = os.environ.get("PG_HOST")
-PG_PORT = int(os.environ.get("PG_PORT", 6543))
-PG_DBNAME = os.environ.get("PG_DBNAME")
-PG_USER = os.environ.get("PG_USER")
-PG_PASSWORD = os.environ.get("PG_PASSWORD")
+PG_HOST = st.secrets.get("PG_HOST", os.environ.get("PG_HOST"))
+PG_PORT = int(st.secrets.get("PG_PORT", os.environ.get("PG_PORT", 6543)))
+PG_DBNAME = st.secrets.get("PG_DBNAME", os.environ.get("PG_DBNAME"))
+PG_USER = st.secrets.get("PG_USER", os.environ.get("PG_USER"))
+PG_PASSWORD = st.secrets.get("PG_PASSWORD", os.environ.get("PG_PASSWORD"))
 
 # --- Database Functions ---
 @st.cache_resource
@@ -383,28 +384,37 @@ def display_active_vs_inactive_members(df_profile_stamp_analytics: pd.DataFrame,
 # --- Streamlit App Layout ---
 st.set_page_config(layout="wide")
 
-# --- AUTHENTICATION SETUP ---
-names = ["Baan Lao", "Crusty's NDG", "Mama Khan"] # Display names
-usernames = ["Baan Lao", "Crusty's NDG", "Mama Khan"] # Usernames for login
-hashed_passwords = [
-    st_auth.Hasher(['passwordA1']).generate()[0], # Password for Baan Lao
-    st_auth.Hasher(['passwordB2']).generate()[0], # Password for Crusty's NDG
-    st_auth.Hasher(['passwordC3']).generate()[0]  # Password for Mama Khan
-]
+def load_auth_from_secrets():
+    try:
+        s = st.secrets["auth"]
 
-credentials = {
-    "usernames": {
-        usernames[0]: {"email": "baan.lao@example.com", "name": names[0], "password": hashed_passwords[0]},
-        usernames[1]: {"email": "crustys.ndg@example.com", "name": names[1], "password": hashed_passwords[1]},
-        usernames[2]: {"email": "mama.khan@example.com", "name": names[2], "password": hashed_passwords[2]},
-    }
-}
+        # Build the credentials dict expected by streamlit-authenticator
+        creds = {"usernames": {}}
+        for uname, uinfo in s["credentials"]["usernames"].items():
+            creds["usernames"][uname] = {
+                "email": uinfo["email"],
+                "name":  uinfo["name"],
+                "password": uinfo["password"],  # already hashed
+            }
+
+        cookie_conf = s["cookie"]
+        preauth = s.get("preauthorized", {"emails": []})
+
+        # sanity checks
+        assert cookie_conf["name"] and cookie_conf["key"]
+        return creds, cookie_conf, preauth
+    except Exception as e:
+        st.error(f"Auth configuration error: {e}")
+        st.stop()
+
+credentials, cookie_conf, preauthorized = load_auth_from_secrets()
 
 authenticator = st_auth.Authenticate(
     credentials,
-    "streamlit_app_cookie", # Cookie name
-    "abcdef", # Key for hashing cookie
-    cookie_expiry_days=30 # Days before cookie expires
+    cookie_conf["name"],
+    cookie_conf["key"],
+    cookie_conf["expiry_days"],
+    preauthorized,
 )
 
 name, authentication_status, username = authenticator.login("Login", "main")
@@ -416,10 +426,11 @@ elif authentication_status == None:
     st.warning("Please enter your username and password")
 elif authentication_status:
     # User is logged in
-    st.sidebar.title(f"Welcome {name}")
+    display_name = credentials["usernames"][username]["name"]
+    st.sidebar.title(f"Welcome {display_name}")
     authenticator.logout("Logout", "sidebar") # Logout button in sidebar
 
-    st.title(f"Tayyib App Dashboard: {name}") # Changed main title
+    st.title(f"Tayyib App Dashboard: {display_name}") # Changed main title
 
     # --- Fetch Restaurant ID for the logged-in user ---
     restaurant_id_query = """
@@ -489,7 +500,7 @@ elif authentication_status:
     profile_stamp_analytics_df = get_data_as_dataframe(profile_stamp_analytics_query, params=(int(logged_in_restaurant_id),))
 
     # --- Display Plots for the Logged-in Restaurant ---
-    logged_in_restaurant_name = username
+    logged_in_restaurant_name = display_name
 
     # Overall Metrics Section (as seen in your PDF)
     st.header("Overview")
