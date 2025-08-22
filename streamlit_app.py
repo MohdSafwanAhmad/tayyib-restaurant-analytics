@@ -24,20 +24,22 @@ PG_PORT = int(st.secrets.get("PG_PORT", os.environ.get("PG_PORT", 6543)))
 PG_DBNAME = st.secrets.get("PG_DBNAME", os.environ.get("PG_DBNAME"))
 PG_USER = st.secrets.get("PG_USER", os.environ.get("PG_USER"))
 PG_PASSWORD = st.secrets.get("PG_PASSWORD", os.environ.get("PG_PASSWORD"))
+db_url = st.secrets.get("DATABASE_URL", os.environ.get("DATABASE_URL"))
 
 # --- Database Functions ---
 @st.cache_resource
 def get_pg_connection():
   """Establishes and returns a PostgreSQL database connection."""
   try:
-    conn = psycopg2.connect(
-        host=PG_HOST,
-        port=PG_PORT,
-        dbname=PG_DBNAME,
-        user=PG_USER,
-        password=PG_PASSWORD,
-        sslmode="require"
-    )
+    # conn = psycopg2.connect(
+    #     host=PG_HOST,
+    #     port=PG_PORT,
+    #     dbname=PG_DBNAME,
+    #     user=PG_USER,
+    #     password=PG_PASSWORD,
+    #     sslmode="require"
+    # )
+    conn = psycopg2.connect(db_url)
     return conn
   except Exception as e:
     st.error(f"Error connecting to the database: {e}")
