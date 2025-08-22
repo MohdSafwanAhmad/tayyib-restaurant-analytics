@@ -31,17 +31,11 @@ def get_pg_connection():
   """Establishes and returns a PostgreSQL database connection."""
   try:
     conn = psycopg2.connect(
-        # host=PG_HOST,
-        # port=PG_PORT,
-        # dbname=PG_DBNAME,
-        # user=PG_USER,
-        # password=PG_PASSWORD,
-        PG_HOST="aws-0-ca-central-1.pooler.supabase.com",
-        PG_PORT="6543",
-        PG_DBNAME="postgres",
-        PG_USER="postgres.gjhtuvoazvykfgtazrdh",
-        PG_PASSWORD="L6MfYb2AZX39xOlY" ,
-        sslmode="require",
+        host=PG_HOST,
+        port=PG_PORT,
+        dbname=PG_DBNAME,
+        user=PG_USER,
+        password=PG_PASSWORD,
     )
     return conn
   except Exception as e:
