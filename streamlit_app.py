@@ -19,12 +19,12 @@ ACCENT_COLOR = '#45B7D1' # Light blue
 GRAY_COLOR = '#6c757d' # Muted gray
 
 # Database connection details (fetched from environment variables)
-PG_HOST = st.secrets.get("PG_HOST", os.environ.get("PG_HOST"))
-PG_PORT = int(st.secrets.get("PG_PORT", os.environ.get("PG_PORT", 6543)))
-PG_DBNAME = st.secrets.get("PG_DBNAME", os.environ.get("PG_DBNAME"))
-PG_USER = st.secrets.get("PG_USER", os.environ.get("PG_USER"))
-PG_PASSWORD = st.secrets.get("PG_PASSWORD", os.environ.get("PG_PASSWORD"))
-db_url = st.secrets.get("DATABASE_URL", os.environ.get("DATABASE_URL"))
+PG_HOST = st.secrets.get("PG_HOST")
+PG_PORT = int(st.secrets.get("PG_PORT"))
+PG_DBNAME = st.secrets.get("PG_DBNAME")
+PG_USER = st.secrets.get("PG_USER")
+PG_PASSWORD = st.secrets.get("PG_PASSWORD")
+db_url = st.secrets.get("DATABASE_URL")
 
 # --- Database Functions ---
 @st.cache_resource
