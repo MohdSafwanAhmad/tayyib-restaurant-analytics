@@ -36,6 +36,7 @@ def get_pg_connection():
         dbname=PG_DBNAME,
         user=PG_USER,
         password=PG_PASSWORD,
+        sslmode="require"
     )
     return conn
   except Exception as e:
