@@ -19,11 +19,11 @@ ACCENT_COLOR = '#45B7D1' # Light blue
 GRAY_COLOR = '#6c757d' # Muted gray
 
 # Database connection details (fetched from environment variables)
-PG_HOST = st.secrets.get("PG_HOST")
-PG_PORT = int(st.secrets.get("PG_PORT"))
-PG_DBNAME = st.secrets.get("PG_DBNAME")
-PG_USER = st.secrets.get("PG_USER")
-PG_PASSWORD = st.secrets.get("PG_PASSWORD")
+# PG_HOST = st.secrets.get("PG_HOST")
+# PG_PORT = int(st.secrets.get("PG_PORT"))
+# PG_DBNAME = st.secrets.get("PG_DBNAME")
+# PG_USER = st.secrets.get("PG_USER")
+# PG_PASSWORD = st.secrets.get("PG_PASSWORD")
 db_url = st.secrets.get("DATABASE_URL")
 
 # --- Database Functions ---
