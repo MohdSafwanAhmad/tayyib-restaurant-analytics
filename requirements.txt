@@ -5,3 +5,4 @@ matplotlib
 seaborn
 streamlit_authenticator==0.2.2
 pytz==2025.2
+streamlit-card==1.0.2
