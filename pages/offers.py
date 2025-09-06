@@ -443,5 +443,7 @@ elif authentication_status:
             my_offers = my_offers[mask]
 
     st.subheader("Your Offers")
-    my_offers = my_offers.sort_values("last_modified", ascending=False).fillna("")
+    if "last_modified" in my_offers.columns:
+        my_offers = my_offers.sort_values("last_modified", ascending=False)
+    my_offers = my_offers.fillna("")
     render_offer_list(my_offers)
