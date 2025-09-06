@@ -1,0 +1,3 @@
+id,restaurant_id,username,title,description,offer_type,discount_value,coupon_code,start_date,expiry_date,active,approval_status,created_at,last_modified
+1,12,baan lao,Buy One Get One Free - Banh Mi,,BOGO,,,,,True,Pending,2025-09-06T19:42:14.832145,2025-09-06T19:42:14.832145
+2,12,baan lao,Buy One Get One Free - Banh Mi,Buy any Banh Mi and get one free! Bring your friends!,BOGO,,,2025-09-06,2025-10-06,True,Pending,2025-09-06T20:39:02.206615,2025-09-06T20:39:02.206615
