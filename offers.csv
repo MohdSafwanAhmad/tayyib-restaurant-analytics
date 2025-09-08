@@ -1,1 +1,5 @@
-id,restaurant_id,username,title,description,offer_type,discount_value,coupon_code,start_date,expiry_date,active,approval_status,created_at,last_modified
+id,restaurant_id,username,title,description,offer_type,discount_value,coupon_code,start_date,expiry_date,active,approval_status,created_at,last_modified,images
+1,12,baan lao,Banh Mi,,Buy One Get One Free,,,2025-09-07,2025-10-07,False,Pending,2025-09-07T13:38:55.736357,2025-09-07T13:38:55.736357,
+2,12,baan lao,Buy One Get One Free - Banh Mii,,Buy One Get One Free,,,2025-09-07,2025-10-07,False,Pending,2025-09-07T17:39:09.108187,2025-09-07T17:39:09.108187,
+3,12,baan lao,test,,Buy One Get One Free,,,2025-09-07,2025-10-07,,Pending,2025-09-07T17:48:18.964324,2025-09-07T17:48:18.964324,
+4,12,baan lao,one two three,lololol,Buy One Get One Free,,,2025-09-07,2025-10-07,True,Pending,2025-09-07T19:24:07.851622,2025-09-07T19:24:07.851622,"[""data/offers/4/f392117084ef445399951091ee5f98c1.png""]"

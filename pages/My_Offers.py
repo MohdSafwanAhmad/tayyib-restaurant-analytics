@@ -1,18 +1,30 @@
-# pages/offers.py
+# pages/My_Offers.py
+
 import os
+import io
+import json
+import uuid
+import random
+import string
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
 import streamlit_authenticator as st_auth
 
-import utils.queries as q  # for get_restaurant_id_for_login
+import utils.queries as q  # must provide get_restaurant_id_for_login(username)
 
+# ---------- Page config ----------
 st.set_page_config(layout="wide")
 
-# ---------- Config ----------
-OFFERS_CSV_PATH = "offers.csv"  # temporary store; later swap with your API
+# ---------- Storage config ----------
+OFFERS_CSV_PATH = "offers.csv"
+IMG_ROOT = Path("data/offers")  # local persistence for uploaded images
+IMG_ROOT.mkdir(parents=True, exist_ok=True)
 
+
+# ---------- Admin users ----------
 def get_admin_usernames():
     """
     Optional convention: in .streamlit/secrets.toml add:
@@ -26,9 +38,11 @@ def get_admin_usernames():
     except Exception:
         return ["admin"]
 
+
 ADMIN_USERS = set(get_admin_usernames())
 
-# ---------- Auth (same pattern as analytics.py) ----------
+
+# ---------- Auth ----------
 def load_auth_from_secrets():
     try:
         s = st.secrets["auth"]
@@ -36,7 +50,7 @@ def load_auth_from_secrets():
         for uname, uinfo in s["credentials"]["usernames"].items():
             creds["usernames"][uname] = {
                 "email": uinfo["email"],
-                "name":  uinfo["name"],
+                "name": uinfo["name"],
                 "password": uinfo["password"],
             }
         cookie_conf = s["cookie"]
@@ -47,35 +61,61 @@ def load_auth_from_secrets():
         st.error(f"Auth configuration error: {e}")
         st.stop()
 
+
 credentials, cookie_conf, preauthorized = load_auth_from_secrets()
 authenticator = st_auth.Authenticate(
-    credentials, cookie_conf["name"], cookie_conf["key"], cookie_conf["expiry_days"], preauthorized
+    credentials,
+    cookie_conf["name"],
+    cookie_conf["key"],
+    cookie_conf["expiry_days"],
+    preauthorized,
 )
 name, authentication_status, username = authenticator.login("Login", "main")
 
-# ---------- Storage helpers ----------
+
+# ---------- CSV helpers ----------
 def _offers_schema_df() -> pd.DataFrame:
     return pd.DataFrame(
         columns=[
-            "id", "restaurant_id", "username",
-            "title", "description",
-            "offer_type", "discount_value",
-            "start_date", "expiry_date",
-            "active", "approval_status",
-            "created_at", "last_modified",
+            "id",
+            "restaurant_id",
+            "username",
+            "title",
+            "description",
+            "offer_type",
+            "discount_value",
+            "start_date",
+            "expiry_date",
+            "active",
+            "approval_status",
+            "images",  # JSON list of image paths/URLs
+            "created_at",
+            "last_modified",
         ]
     )
+
 
 def load_offers_df() -> pd.DataFrame:
     if os.path.exists(OFFERS_CSV_PATH):
         df = pd.read_csv(OFFERS_CSV_PATH, dtype=str)
-        if not df.empty and "active" in df.columns:
-            df["active"] = df["active"].fillna("False").astype(str)
+        if not df.empty:
+            for col in ["active", "approval_status", "images"]:
+                if col in df.columns:
+                    df[col] = df[col].fillna("")
+        else:
+            df = _offers_schema_df()
         return df
     return _offers_schema_df()
 
+
 def save_offers_df(df: pd.DataFrame) -> None:
+    # Ensure all columns exist (schema safety)
+    base = _offers_schema_df().columns.tolist()
+    for col in base:
+        if col not in df.columns:
+            df[col] = ""
     df.to_csv(OFFERS_CSV_PATH, index=False)
+
 
 def next_offer_id(df: pd.DataFrame) -> str:
     if df.empty or "id" not in df.columns:
@@ -83,12 +123,14 @@ def next_offer_id(df: pd.DataFrame) -> str:
     try:
         return str(df["id"].astype(int).max() + 1)
     except Exception:
+        # Fallback if ids are not numeric
         return str(len(df) + 1)
 
+
+# ---------- Misc utils ----------
 def _s(v) -> str:
     """Safe str for UI."""
     try:
-        import pandas as pd
         if v is None:
             return ""
         if isinstance(v, float) and pd.isna(v):
@@ -98,30 +140,11 @@ def _s(v) -> str:
             return ""
     return str(v)
 
-# def generate_coupon_code(n: int = 8) -> str:
-#     alphabet = string.ascii_uppercase + string.digits
-#     return "".join(random.choice(alphabet) for _ in range(n))
 
-# ---------- UI helpers ----------
-def show_offer_table(df: pd.DataFrame, title: str):
-    st.subheader(title)
-    if df.empty:
-        st.info("No offers yet.")
-        return
-    display_df = df.copy()
-    for col in ["start_date", "expiry_date", "created_at", "last_modified"]:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].fillna("")
-    st.dataframe(
-        display_df[
-            [
-                "id", "title", "offer_type", "discount_value",
-                "start_date", "expiry_date", "active", "approval_status", "last_modified"
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
+def generate_coupon_code(n: int = 8) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(random.choice(alphabet) for _ in range(n))
+
 
 def _safe_parse_date(s: str | None) -> date | None:
     if not s:
@@ -131,14 +154,87 @@ def _safe_parse_date(s: str | None) -> date | None:
     except Exception:
         return None
 
+
+def _parse_images(cell) -> list[str]:
+    """Accepts list, JSON list string, or CSV string; returns list[str]."""
+    if cell is None:
+        return []
+    if isinstance(cell, list):
+        return [str(x) for x in cell if str(x).strip()]
+    s = str(cell).strip()
+    if not s:
+        return []
+    try:
+        val = json.loads(s)
+        if isinstance(val, list):
+            return [str(x) for x in val if str(x).strip()]
+    except Exception:
+        pass
+    # fallback CSV
+    return [p.strip() for p in s.split(",") if p.strip()]
+
+
+# ---------- Image persistence ----------
+def persist_uploaded_images(uploaded_files, offer_id: str) -> list[str]:
+    """
+    Save uploaded images for a given offer_id.
+    Returns a list of relative file paths suitable for st.image.
+    """
+    if not uploaded_files:
+        return []
+    dest_dir = IMG_ROOT / str(offer_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+    for uf in uploaded_files:
+        try:
+            ext = Path(uf.name).suffix.lower() or ".png"
+            fname = f"{uuid.uuid4().hex}{ext}"
+            fpath = dest_dir / fname
+            with open(fpath, "wb") as out:
+                out.write(uf.read())
+            saved_paths.append(str(fpath))
+        except Exception as e:
+            st.warning(f"Could not save {getattr(uf, 'name', 'file')}: {e}")
+    return saved_paths
+
+
+# ---------- UI helpers ----------
+def show_offer_table(df: pd.DataFrame, title: str):
+    st.subheader(title)
+    if df.empty:
+        st.info("No offers yet.")
+        return
+    display_columns = [
+        "id",
+        "title",
+        "description",
+        "offer_type",
+        "discount_value",
+        "start_date",
+        "expiry_date",
+        "active",
+        "approval_status",
+        "last_modified",
+    ]
+    for col in display_columns:
+        if col not in df.columns:
+            df[col] = ""
+    display_df = df[display_columns].copy()
+    for col in ["start_date", "expiry_date", "created_at", "last_modified"]:
+        if col in display_df.columns:
+            display_df[col] = display_df[col].fillna("")
+    st.dataframe(display_df, use_container_width=True, show_index=False)
+
+
 def offer_form(defaults: dict, *, submit_label: str = "Submit") -> dict:
     """
     Render the form and return a dict with the field values (no coupon code).
-    For BOGO/Combo we do not show any 'Value' input; for Time-Based % we show a slider.
+    For BOGO/Combo we do not show any 'Value' input; for % Discount we show a slider.
     Campaign dates are selected via a single date-range picker.
     """
     d_start = _safe_parse_date(defaults.get("start_date"))
-    d_end   = _safe_parse_date(defaults.get("expiry_date"))
+    d_end = _safe_parse_date(defaults.get("expiry_date"))
     if d_start and d_end:
         range_value = (d_start, d_end)
     else:
@@ -148,41 +244,68 @@ def offer_form(defaults: dict, *, submit_label: str = "Submit") -> dict:
     with st.form("offer_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
-            title = st.text_input("Offer title", value=defaults.get("title", ""), max_chars=80)
+            title = st.text_input(
+                "Offer title", value=defaults.get("title", ""), max_chars=80
+            )
             offer_type = st.selectbox(
                 "Offer type",
-                ["BOGO", "Combo", "Time-Based %"],
-                index=["BOGO","Combo","Time-Based %"].index(defaults.get("offer_type","BOGO"))
-                if defaults.get("offer_type") in ["BOGO","Combo","Time-Based %"] else 0
+                ["Buy One Get One Free", "Combo", "% Discount"],
+                index=["Buy One Get One Free", "Combo", "% Discount"].index(
+                    defaults.get("offer_type", "Combo")
+                )
+                if defaults.get("offer_type")
+                in ["Buy One Get One Free", "Combo", "% Discount"]
+                else 0,
             )
 
-            if offer_type == "Time-Based %":
+            if offer_type == "% Discount":
                 discount_value = st.slider(
                     "Discount percent",
-                    min_value=1, max_value=90,
-                    value=int(defaults.get("discount_value", "10") or 10), step=1
+                    min_value=1,
+                    max_value=90,
+                    value=int(defaults.get("discount_value", "10") or 10),
+                    step=1,
                 )
                 discount_value = str(discount_value)
             else:
                 discount_value = ""  # hidden for BOGO/Combo
 
         with col2:
-            description = st.text_area("Offer description", value=defaults.get("description", ""), height=120)
+            description = st.text_area(
+                "Offer description", value=defaults.get("description", ""), height=120
+            )
 
         # Single range picker for campaign window (Start, End)
         dr = st.date_input(
             "Campaign dates",
-            value=range_value,            # tuple => range
+            value=range_value,  # tuple => range
             format="MM.DD.YYYY",
         )
 
-        active = st.checkbox("Active", value=(str(defaults.get("active", "True")).lower() == "true"))
+        active = st.checkbox(
+            "Active", value=(str(defaults.get("active", "True")).lower() == "true")
+        )
+
+        uploaded_files = st.file_uploader(
+            "Upload images",
+            accept_multiple_files=True,
+            type=["jpg", "jpeg", "png", "webp"],
+            key="offer_images",
+        )
+        # Optional inline preview during form filling
+        if uploaded_files:
+            st.caption("Preview")
+            cols = st.columns(min(4, len(uploaded_files)))
+            for i, uf in enumerate(uploaded_files):
+                with cols[i % len(cols)]:
+                    st.image(uf, caption=getattr(uf, "name", None), use_column_width=True)
+
         submitted = st.form_submit_button(submit_label)
 
         start_out, end_out = "", ""
         if isinstance(dr, (list, tuple)) and len(dr) == 2 and dr[0] and dr[1]:
             start_out = str(dr[0])
-            end_out   = str(dr[1])
+            end_out = str(dr[1])
 
         return {
             "submitted": submitted,
@@ -195,10 +318,12 @@ def offer_form(defaults: dict, *, submit_label: str = "Submit") -> dict:
             "active": str(bool(active)),
         }
 
+
 def _row_overlaps_range(row, range_start: date, range_end: date) -> bool:
     rs = _safe_parse_date(row.get("start_date")) or date.min
     re = _safe_parse_date(row.get("expiry_date")) or date.max
     return max(rs, range_start) <= min(re, range_end)
+
 
 def render_offer_list(df: pd.DataFrame):
     """
@@ -217,23 +342,47 @@ def render_offer_list(df: pd.DataFrame):
                 st.markdown(f"### {_s(row['title'])}")
                 st.caption(f"Status: {_s(row.get('approval_status','Pending'))}")
             with right:
-                badge = "🟢 Active" if _s(row.get("active","False")).lower() == "true" else "⚪ Inactive"
-                st.markdown(f"<div style='text-align:right;'>{badge}</div>", unsafe_allow_html=True)
+                badge = (
+                    "🟢 Active"
+                    if _s(row.get("active", "False")).lower() == "true"
+                    else "⚪ Inactive"
+                )
+                st.markdown(
+                    f"<div style='text-align:right;'>{badge}</div>",
+                    unsafe_allow_html=True,
+                )
 
             # Body
             if _s(row.get("description", "")):
-                st.write(_s(row.get("description","")))
+                st.write(_s(row.get("description", "")))
 
+            # Images (thumbnail strip + expander)
+            imgs = _parse_images(row.get("images", ""))
+            if imgs:
+                st.caption("Images")
+                n = min(4, len(imgs))
+                cols = st.columns(n)
+                for i, p in enumerate(imgs[:n]):
+                    with cols[i]:
+                        try:
+                            st.image(p, use_column_width=True)
+                        except Exception as e:
+                            st.warning(f"Could not load image: {p} ({e})")
+                if len(imgs) > 4:
+                    with st.expander(f"Show {len(imgs) - 4} more image(s)"):
+                        st.image(imgs[4:], use_column_width=True)
+
+            # Meta
             m1, m2, m3 = st.columns(3)
             with m1:
                 st.caption("Type")
-                st.write(_s(row.get("offer_type","")))
+                st.write(_s(row.get("offer_type", "")))
             with m2:
-                st.caption("Value")
-                if _s(row.get("offer_type")) == "Time-Based %":
-                    st.write(f"{_s(row.get('discount_value',''))}%")
+                if _s(row.get("offer_type")) == "% Discount":
+                    st.caption("Value")
+                    st.write(f"{_s(row.get('discount_value', ''))}%")
                 else:
-                    st.write("—")
+                    st.write("")
             with m3:
                 st.caption("Dates")
                 s = _s(row.get("start_date")) or "—"
@@ -241,7 +390,7 @@ def render_offer_list(df: pd.DataFrame):
                 st.write(f"{s} → {e}")
 
             # Actions (inside same container)
-            a1, a2 = st.columns([0.1, 0.1])
+            a1, a2 = st.columns([0.1, 0.9])
             with a1:
                 if st.button("Edit", key=f"edit_{row['id']}"):
                     st.session_state["edit_offer_id"] = row["id"]
@@ -251,12 +400,19 @@ def render_offer_list(df: pd.DataFrame):
                     df_all = load_offers_df().fillna("")
                     idx = df_all.index[df_all["id"] == row["id"]]
                     if len(idx) == 1:
+                        # (Optional) also delete image files
+                        # try:
+                        #     for p in _parse_images(df_all.loc[idx[0], "images"]):
+                        #         Path(p).unlink(missing_ok=True)
+                        # except Exception:
+                        #     pass
                         df_all = df_all.drop(idx)
                         save_offers_df(df_all)
                         st.success("Offer deleted.")
                         st.rerun()
                     else:
                         st.error("Could not locate this offer to delete.")
+
 
 # ---------- Page logic ----------
 if authentication_status is False:
@@ -288,15 +444,21 @@ elif authentication_status:
         if isinstance(dr, (list, tuple)) and len(dr) == 2:
             rstart, rend = dr
             if rstart and rend:
-                mask = offers_df.apply(lambda r: _row_overlaps_range(r, rstart, rend), axis=1)
+                mask = offers_df.apply(
+                    lambda r: _row_overlaps_range(r, rstart, rend), axis=1
+                )
                 filtered_admin_df = offers_df[mask]
             else:
                 filtered_admin_df = offers_df
         else:
             filtered_admin_df = offers_df
 
-        pending = filtered_admin_df[filtered_admin_df["approval_status"].isin(["Pending", "Edit Pending"])].copy()
-        show_offer_table(pending.sort_values("last_modified", ascending=False), "Pending Approval")
+        pending = filtered_admin_df[
+            filtered_admin_df["approval_status"].isin(["Pending", "Edit Pending"])
+        ].copy()
+        show_offer_table(
+            pending.sort_values("last_modified", ascending=False), "Pending Approval"
+        )
 
         if not pending.empty:
             id_to_review = st.selectbox(
@@ -307,11 +469,26 @@ elif authentication_status:
             selected = pending.loc[pending["id"] == id_to_review].iloc[0].to_dict()
 
             with st.expander("Offer details", expanded=True):
-                st.write({k: selected[k] for k in [
-                    "id","restaurant_id","username","title","description",
-                    "offer_type","discount_value",
-                    "start_date","expiry_date","active","approval_status","last_modified"
-                ]})
+                st.write(
+                    {
+                        k: selected[k]
+                        for k in [
+                            "id",
+                            "restaurant_id",
+                            "username",
+                            "title",
+                            "description",
+                            "offer_type",
+                            "discount_value",
+                            "start_date",
+                            "expiry_date",
+                            "active",
+                            "approval_status",
+                            "images",
+                            "last_modified",
+                        ]
+                    }
+                )
 
             colA, colB = st.columns(2)
             with colA:
@@ -342,7 +519,9 @@ elif authentication_status:
                         offers_df = new_df
 
         st.markdown("---")
-        show_offer_table(offers_df.sort_values("last_modified", ascending=False), "All Offers")
+        show_offer_table(
+            offers_df.sort_values("last_modified", ascending=False), "All Offers"
+        )
         st.stop()  # do not render restaurant UI for admins
 
     # ----- RESTAURANT FLOW (only "My Offers") -----
@@ -357,18 +536,23 @@ elif authentication_status:
     my_offers_full = offers_df[offers_df["restaurant_id"] == restaurant_id].copy()
 
     edit_id = st.session_state.get("edit_offer_id")
-    rec = my_offers_full.loc[my_offers_full["id"] == edit_id] if edit_id else pd.DataFrame()
+    rec = (
+        my_offers_full.loc[my_offers_full["id"] == edit_id]
+        if edit_id
+        else pd.DataFrame()
+    )
 
     st.markdown("#### " + ("Edit Offer" if not rec.empty else "Add New Offer"))
 
     defaults = {
         "title": "",
         "description": "",
-        "offer_type": "BOGO",
+        "offer_type": "Buy One Get One Free",
         "discount_value": "",
-        "start_date": "",
+        "start_date": str(date.today()),
         "expiry_date": "",
         "active": "True",
+        "images": "[]",
     }
     if not rec.empty:
         defaults.update(rec.iloc[0].to_dict())
@@ -379,10 +563,21 @@ elif authentication_status:
         new_df = offers_df.copy()
         now = datetime.utcnow().isoformat()
 
+        # Gather uploaded files from the form
+        uploaded_files = st.session_state.get("offer_images", [])
+        if uploaded_files is None:
+            uploaded_files = []
+
         if not rec.empty:
+            # ----- Update existing row -----
             idx = new_df.index[new_df["id"] == edit_id]
             if len(idx) == 1:
                 i = idx[0]
+                # Persist any newly uploaded images and merge with existing
+                old_imgs = _parse_images(new_df.at[i, "images"]) if "images" in new_df.columns else []
+                new_paths = persist_uploaded_images(uploaded_files, offer_id=edit_id)
+                merged_imgs = old_imgs + new_paths
+
                 new_df.at[i, "title"] = vals["title"]
                 new_df.at[i, "description"] = vals["description"]
                 new_df.at[i, "offer_type"] = vals["offer_type"]
@@ -390,6 +585,7 @@ elif authentication_status:
                 new_df.at[i, "start_date"] = vals["start_date"]
                 new_df.at[i, "expiry_date"] = vals["expiry_date"]
                 new_df.at[i, "active"] = vals["active"]
+                new_df.at[i, "images"] = json.dumps(merged_imgs)
                 new_df.at[i, "approval_status"] = "Edit Pending"
                 new_df.at[i, "last_modified"] = now
                 save_offers_df(new_df)
@@ -400,10 +596,13 @@ elif authentication_status:
             else:
                 st.error("Could not find the selected offer to update.")
         else:
+            # ----- Create new row -----
             if not vals["title"]:
                 st.error("Please provide an offer title.")
             else:
                 oid = next_offer_id(new_df)
+                # Persist uploaded images for the new offer
+                new_paths = persist_uploaded_images(uploaded_files, offer_id=oid)
                 row = {
                     "id": oid,
                     "restaurant_id": restaurant_id,
@@ -416,6 +615,7 @@ elif authentication_status:
                     "expiry_date": vals["expiry_date"],
                     "active": vals["active"],
                     "approval_status": "Pending",
+                    "images": json.dumps(new_paths),
                     "created_at": now,
                     "last_modified": now,
                 }
@@ -431,15 +631,15 @@ elif authentication_status:
     default_start = today - timedelta(days=60)
     default_end = today + timedelta(days=120)
     dr = st.date_input(
-        "Filter by campaign dates",
-        (default_start, default_end),
-        format="MM.DD.YYYY",
+        "Filter by campaign dates", (default_start, default_end), format="MM.DD.YYYY"
     )
     my_offers = my_offers_full.copy()
     if isinstance(dr, (list, tuple)) and len(dr) == 2:
         rstart, rend = dr
         if rstart and rend:
-            mask = my_offers.apply(lambda r: _row_overlaps_range(r, rstart, rend), axis=1)
+            mask = my_offers.apply(
+                lambda r: _row_overlaps_range(r, rstart, rend), axis=1
+            )
             my_offers = my_offers[mask]
 
     st.subheader("Your Offers")

@@ -1,5 +1,5 @@
 import streamlit as st
 
-pg = st.navigation([st.Page("pages/analytics.py"), st.Page("pages/offers.py")])
+pg = st.navigation([st.Page("pages/My_Dashboard.py"), st.Page("pages/My_Offers.py")])
 pg.run()
 
