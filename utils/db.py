@@ -1,12 +1,12 @@
 # utils/db.py
-import time
 import pandas as pd
 import psycopg2
 import streamlit as st
-from psycopg2.extras import RealDictCursor
-from psycopg2 import OperationalError, InterfaceError, DatabaseError
+from psycopg2 import OperationalError, InterfaceError
 from typing import Any, Iterable, Optional
 from .config import get_settings
+import numpy as np
+from psycopg2.extensions import TRANSACTION_STATUS_INERROR
 
 KEEPALIVE_KW = dict(
     keepalives=1,
@@ -34,39 +34,73 @@ def _new_conn():
     _connect.clear()          # drop cached resource
     return _connect()
 
-def _run(query: str, params: Optional[Iterable[Any]]=None) -> pd.DataFrame:
-    """
-    Single place to run SELECTs safely with auto-reconnect.
-    Returns DataFrame, never raises to the page. Errors -> empty df + st.error once.
-    """
-    tries = 2
-    for attempt in range(tries):
-        try:
-            conn = _connect()
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(query, params or ())
-                rows = cur.fetchall()
-                return pd.DataFrame(rows)
-        except (OperationalError, InterfaceError) as e:
-            # connection likely dropped; rebuild once
-            if attempt == 0:
-                st.warning("DB connection dropped. Reconnecting …")
-                time.sleep(0.5)
-                conn = _new_conn()
-                continue
-            else:
-                st.error(f"Database connection error: {e}")
-                return pd.DataFrame()
-        except DatabaseError as e:
-            st.error(f"Database error: {e}")
-            return pd.DataFrame()
-        except Exception as e:
-            st.error(f"Unexpected error: {e}")
-            return pd.DataFrame()
-    return pd.DataFrame()
+def _normalize_param(x: Any) -> Any:
+    if isinstance(x, (np.integer,)):   # np.int64, np.int32, ...
+        return int(x)
+    if isinstance(x, (np.floating,)):  # np.float64, ...
+        return float(x)
+    if isinstance(x, (list, tuple)):   # normalize nested sequences if you ever pass IN (...) arrays etc.
+        return type(x)(_normalize_param(v) for v in x)
+    return x
 
-# public helper
 @st.cache_data(ttl=120, show_spinner=False)
-def get_df(query: str, params: Optional[Iterable[Any]]=None) -> pd.DataFrame:
+def get_df(query: str, params: Optional[Iterable[Any]] = None) -> pd.DataFrame:
     # cache at the dataframe layer; invalidates when query or params change
+    if params is not None:
+        params = tuple(_normalize_param(x) for x in params)
     return _run(query, params)
+
+def _run(query: str, params=None) -> pd.DataFrame:
+    """
+    Execute a query using the cached connection from _connect().
+    - If a previous error left the TX aborted -> rollback before executing
+    - Rollback on any exception
+    - Recreate the connection and retry once on Interface/Operational errors
+    - Commit after every execute (including SELECT) to clear TX state
+    """
+    conn = _connect()
+
+    def _execute_with(conn_):
+        # If previous statement failed, connection may be in "aborted" state; clear it.
+        ts = getattr(conn_, "get_transaction_status", lambda: None)()
+        if ts == TRANSACTION_STATUS_INERROR:
+            try:
+                conn_.rollback()
+            except Exception:
+                pass
+
+        with conn_.cursor() as cur:
+            cur.execute(query, params)
+            if cur.description:  # SELECT-like
+                rows = cur.fetchall()
+                cols = [c[0] for c in cur.description]
+                conn_.commit()  # clear tx state; safe even for reads
+                return pd.DataFrame(rows, columns=cols)
+            else:
+                conn_.commit()
+                return pd.DataFrame()
+
+    try:
+        return _execute_with(conn)
+    except (InterfaceError, OperationalError):
+        # connection broken: drop cached resource and retry once
+        conn = _new_conn()
+        try:
+            return _execute_with(conn)
+        except Exception as e2:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise e2
+    except Exception as e:
+        # Any other DB error: rollback so we don't poison the session
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    
+def table_exists(schema: str, name: str) -> bool:
+    df = _run("SELECT to_regclass(%s) IS NOT NULL AS exists", (f"{schema}.{name}",))
+    return bool(df.iloc[0]["exists"])

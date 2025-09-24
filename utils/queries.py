@@ -68,3 +68,72 @@ def get_daily_active_users(restaurant_id: int):
     ORDER BY day;
     """
     return get_df(q, (restaurant_id, restaurant_id))
+
+# Add these functions to your existing utils/queries.py file
+
+def get_existing_offers(restaurant_id: int):
+    """Get all active offers for a restaurant with redemption counts"""
+    q = """
+    SELECT 
+        o.id,
+        o.about,
+        o.offer_type,
+        o.valid_days_of_week,
+        o.valid_start_time,
+        o.valid_end_time,
+        o.start_date,
+        o.end_date,
+        o.unique_usage_per_user,
+        o.created_at,
+        ot.en as offer_type_name,
+        COALESCE(COUNT(or_red.id), 0) as redemption_count,
+        -- Surprise bag details if applicable
+        sb.price,
+        sb.estimated_value,
+        sb.daily_quantity,
+        sb.current_daily_quantity,
+        sb.total_quantity
+    FROM public.offers o
+    JOIN public.offer_types ot ON o.offer_type = ot.id
+    LEFT JOIN public.offer_redemptions or_red ON o.id = or_red.offer_id
+    LEFT JOIN public.surprise_bags sb ON o.id = sb.offer_id
+    WHERE o.restaurant_id = %s
+    GROUP BY o.id, o.about, o.offer_type, o.valid_days_of_week, o.valid_start_time, 
+             o.valid_end_time, o.start_date, o.end_date, o.unique_usage_per_user, 
+             o.created_at, ot.en, sb.price, sb.estimated_value, sb.daily_quantity, 
+             sb.current_daily_quantity, sb.total_quantity
+    ORDER BY o.created_at DESC;
+    """
+    return get_df(q, (restaurant_id,))
+
+def get_offer_redemption_count(offer_id: str):
+    """Get redemption count for a specific offer"""
+    q = """
+    SELECT COUNT(*) as count
+    FROM public.offer_redemptions
+    WHERE offer_id = %s;
+    """
+    result = get_df(q, (offer_id,))
+    return result.iloc[0]['count'] if not result.empty else 0
+
+def get_offer_types():
+    """Get all available offer types"""
+    q = """
+    SELECT id, en, fr
+    FROM public.offer_types
+    ORDER BY id;
+    """
+    return get_df(q, ())
+
+def check_offer_exists_in_db(restaurant_id: int, offer_title: str, offer_type: str):
+    """Check if an offer with the same title and type exists in the database"""
+    q = """
+    SELECT COUNT(*) as count
+    FROM public.offers o
+    JOIN public.offer_types ot ON o.offer_type = ot.id
+    WHERE o.restaurant_id = %s 
+    AND o.about->'en'->>'title' = %s
+    AND ot.en = %s;
+    """
+    result = get_df(q, (restaurant_id, offer_title, offer_type))
+    return result.iloc[0]['count'] > 0 if not result.empty else False
