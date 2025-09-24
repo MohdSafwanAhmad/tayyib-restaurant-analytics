@@ -77,7 +77,7 @@ def show_db_error(err: Exception, context: str | None = None):
     is_missing_table = (code == "42P01") or ("relation" in msg and "does not exist" in msg)
 
     if is_missing_table:
-        human = "This feature isn’t set up in this environment yet."
+        human = "Feature coming soon.."
         if context:
             human = f"{context}: {human}"
         show_error(human + " (database tables are missing).")
