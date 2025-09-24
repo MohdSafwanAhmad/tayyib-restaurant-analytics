@@ -1,1 +1,9 @@
-id,restaurant_id,username,title,description,offer_type,discount_value,coupon_code,start_date,expiry_date,active,approval_status,created_at,last_modified
+id,restaurant_id,username,title,description,offer_type,start_date,expiry_date,start_time,end_time,valid_days,unique_per_user,active,approval_status,created_at,last_modified,sb_price,sb_estimated_value,sb_daily_quantity,sb_current_daily_quantity,sb_total_quantity
+1,16,bismillah poulet grillee,,,3,2025-09-23,,,,,,True,Pending,2025-09-23T04:58:53.697838,2025-09-23T04:58:53.697838,,,,,
+2,16,bismillah poulet grillee,,,4,2025-09-23,,,,,,True,Pending,2025-09-23T04:59:47.349860,2025-09-23T04:59:47.349860,,,,,
+3,16,bismillah poulet grillee,test,tests,Surprise Bag,2025-09-03,2025-09-23,00:00,23:59,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:43:47.660289,2025-09-23T13:43:47.660289,0.00,0.00,0,0,0
+4,16,bismillah poulet grillee,test,tests,Buy One Get One Free,2025-09-03,2025-09-23,00:00,00:30,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:44:00.542509,2025-09-23T13:44:00.542509,,,,,
+5,16,bismillah poulet grillee,test,tests,Buy One Get One Free,2025-09-03,2025-09-23,00:00,00:30,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:44:03.075357,2025-09-23T13:44:03.075357,,,,,
+6,16,bismillah poulet grillee,test,tests,Buy One Get One Free,2025-09-03,2025-09-23,00:00,00:30,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:44:09.991303,2025-09-23T13:44:09.991303,,,,,
+7,16,bismillah poulet grillee,test,tests,Buy One Get One Free,2025-09-25,2025-09-30,00:00,00:30,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:44:22.470843,2025-09-23T13:44:22.470843,,,,,
+8,16,bismillah poulet grillee,test,tests,Surprise Bag,2025-09-25,2025-09-30,00:00,00:30,"Mon,Tue,Wed,Thu,Fri,Sat,Sun",False,True,Pending,2025-09-23T13:44:28.759500,2025-09-23T13:44:28.759500,0.00,0.00,0,0,0

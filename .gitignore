@@ -209,3 +209,4 @@ marimo/_lsp/
 __marimo__/
 .streamlit/secrets.toml
 .DS_Store
+service-account.json

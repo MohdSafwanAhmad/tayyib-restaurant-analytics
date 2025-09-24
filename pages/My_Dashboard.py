@@ -8,7 +8,7 @@ from utils import transform as T
 from utils import charts as C
 from utils import fake_data as F
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Analytics Dashboard", layout="wide")
 
 def load_auth_from_secrets():
     try:
