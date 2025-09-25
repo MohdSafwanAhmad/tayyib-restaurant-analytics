@@ -117,6 +117,19 @@ def add_offer_to_sheet(restaurant_id, restaurant_name, offer_data) -> bool:
     if not ws:
         return False
 
+    # Helper function to handle None/null values consistently
+    def to_sheet_value(value):
+        """Convert None to empty string for Google Sheets"""
+        return "" if value is None else str(value)
+    
+    # Special handling for valid_days_of_week array
+    valid_days = offer_data.get("valid_days_of_week")
+    valid_days_str = "" if not valid_days else json.dumps(valid_days)
+    
+    # Special handling for surprise_bag
+    surprise_bag = offer_data.get("surprise_bag")
+    surprise_bag_str = "" if not surprise_bag else json.dumps(surprise_bag)
+
     row = [
         datetime.utcnow().isoformat(),            # timestamp (UTC)
         str(restaurant_id),
@@ -125,13 +138,13 @@ def add_offer_to_sheet(restaurant_id, restaurant_name, offer_data) -> bool:
         offer_data["about"]["en"]["title"],
         offer_data["about"]["en"].get("description", ""),
         offer_data["about"]["en"].get("summary", ""),
-        json.dumps(offer_data.get("valid_days_of_week") or []),
-        (str(offer_data.get("valid_start_time")) or ""),
-        (str(offer_data.get("valid_end_time")) or ""),
-        str(offer_data.get("start_date") or ""),
-        str(offer_data.get("end_date") or ""),
+        valid_days_str,                          # "" for None/empty array -> NULL in DB
+        to_sheet_value(offer_data.get("valid_start_time")),  # "" for None -> NULL in DB
+        to_sheet_value(offer_data.get("valid_end_time")),    # "" for None -> NULL in DB
+        str(offer_data.get("start_date", "")),
+        to_sheet_value(offer_data.get("end_date")),          # "" for None -> NULL in DB
         "TRUE" if offer_data.get("unique_usage_per_user") else "FALSE",
-        json.dumps(offer_data.get("surprise_bag") or {}),
+        surprise_bag_str,                        # "" for None/empty -> NULL in DB
         "pending",
     ]
 

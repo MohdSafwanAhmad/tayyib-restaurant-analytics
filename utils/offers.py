@@ -65,9 +65,9 @@ def render_offer_form(offer_type):
         
         col3, col4 = st.columns(2)
         with col3:
-            offer_data["start_time"] = st.time_input("Daily start time", value=time(0, 0))
+            offer_data["start_time"] = st.time_input("Daily start time", value=None)
         with col4:
-            offer_data["end_time"] = st.time_input("Daily end time", value=time(23, 59))
+            offer_data["end_time"] = st.time_input("Daily end time", value=None)
         
         # Validity period
         st.subheader("Validity Period")
@@ -105,8 +105,8 @@ def process_offer_submission(offer_type, offer_data):
             }
         },
         "valid_days_of_week": [DAYS_MAPPING[day] for day in offer_data["valid_days"]] if offer_data["valid_days"] else None,
-        "valid_start_time": offer_data["start_time"] if offer_data["start_time"] != time(0, 0) else None,
-        "valid_end_time": offer_data["end_time"] if offer_data["end_time"] != time(23, 59) else None,
+        "valid_start_time": offer_data["start_time"],
+        "valid_end_time": offer_data["end_time"],
         "start_date": offer_data["start_date"],
         "end_date": offer_data["end_date"],
         "unique_usage_per_user": offer_data["unique_usage"],
